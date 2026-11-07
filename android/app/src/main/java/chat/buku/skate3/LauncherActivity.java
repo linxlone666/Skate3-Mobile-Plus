@@ -8,6 +8,7 @@ import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
 import android.database.Cursor;
 import android.graphics.Color;
+import android.graphics.Insets;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -16,11 +17,14 @@ import android.os.StatFs;
 import android.provider.OpenableColumns;
 import android.view.Gravity;
 import android.view.View;
+import android.view.ViewGroup;
+import android.view.WindowInsets;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.ScrollView;
+import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -45,6 +49,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class LauncherActivity extends Activity {
+    private static final String LAUNCHER_PREFERENCES = "launcher-settings";
+    private static final String AUTO_LAUNCH = "auto-launch";
     private static final int REQUEST_ISO = 1001;
     private static final int REQUEST_TITLE_UPDATE = 1002;
     private static final int REQUEST_SEIYU_MODEL = 1003;
@@ -79,6 +85,10 @@ public class LauncherActivity extends Activity {
     private Button tertiaryButton;
     private Button updateButton;
     private Button reportButton;
+    private Button settingsButton;
+    private ScrollView settingsPanel;
+    private Switch autoLaunchSwitch;
+    private boolean autoLaunchPending;
     private AlertDialog modStoreListDialog;
     private boolean busy;
     private boolean checkingUpdate;
@@ -92,18 +102,16 @@ public class LauncherActivity extends Activity {
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
-        // Opening the launcher icon over a live SDL session used to leave its
-        // SurfaceView abandoned. Remove this duplicate launcher immediately and
-        // reveal the game that is already underneath it.
-        if (Skate3Activity.isSessionActive()) {
-            finish();
-            return;
-        }
         resolveStorage();
         setupLog = new File(getFilesDir(), "phone-setup.log");
+        autoLaunchPending = state == null && Intent.ACTION_MAIN.equals(getIntent().getAction())
+            && getSharedPreferences(LAUNCHER_PREFERENCES, MODE_PRIVATE)
+                .getBoolean(AUTO_LAUNCH, false)
+            && compatibilityProblem() == null && GameStorage.launchDirectory(this) != null;
+        boolean openingGame = autoLaunchPending;
         buildInterface();
         refreshInterface();
-        checkForAppUpdate(false);
+        if (!openingGame) checkForAppUpdate(false);
     }
 
     @Override
@@ -118,6 +126,12 @@ public class LauncherActivity extends Activity {
     }
 
     @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus) getWindow().getInsetsController().hide(WindowInsets.Type.statusBars());
+    }
+
+    @Override
     protected void onDestroy() {
         super.onDestroy();
         if (isFinishing()) {
@@ -126,14 +140,38 @@ public class LauncherActivity extends Activity {
     }
 
     private void buildInterface() {
-        int padding = dp(24);
+        int padding = dp(20);
+        getWindow().setDecorFitsSystemWindows(false);
+        LinearLayout screen = new LinearLayout(this);
+        screen.setOrientation(LinearLayout.VERTICAL);
+        screen.setBackgroundColor(Color.rgb(10, 10, 12));
+        screen.setOnApplyWindowInsetsListener((view, insets) -> {
+            Insets safe = insets.getInsets(WindowInsets.Type.systemBars() |
+                                           WindowInsets.Type.displayCutout());
+            view.setPadding(safe.left + padding, safe.top, safe.right + padding, safe.bottom);
+            return WindowInsets.CONSUMED;
+        });
+
+        LinearLayout header = new LinearLayout(this);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        TextView title = text("SKATE 3", 24, Color.WHITE);
+        title.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        header.addView(title, new LinearLayout.LayoutParams(0, dp(52), 1f));
+        title.setGravity(Gravity.CENTER_VERTICAL);
+        settingsButton = actionButton(false);
+        setButton(settingsButton, "SETTINGS", view -> showSettings(), false);
+        header.addView(settingsButton, new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT, dp(48)));
+        screen.addView(header, matchWrap(0));
+
         ScrollView scroll = new ScrollView(this);
-        scroll.setBackgroundColor(Color.rgb(10, 10, 12));
+        screen.addView(scroll, new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
 
         LinearLayout content = new LinearLayout(this);
         content.setOrientation(LinearLayout.VERTICAL);
         content.setGravity(Gravity.CENTER_HORIZONTAL);
-        content.setPadding(padding, dp(28), padding, dp(28));
+        content.setPadding(0, dp(4), 0, dp(20));
         scroll.addView(content, new ScrollView.LayoutParams(
             ScrollView.LayoutParams.MATCH_PARENT, ScrollView.LayoutParams.WRAP_CONTENT));
 
@@ -148,30 +186,6 @@ public class LauncherActivity extends Activity {
         brandRow.addView(numberBrand, new LinearLayout.LayoutParams(
             0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
         content.addView(brandRow, matchWrap(dp(8)));
-
-        languageButton = actionButton(false);
-        setButton(languageButton, LauncherStrings.languageButton(this),
-                  view -> showLanguagePicker(), false);
-        content.addView(languageButton, matchFixed(dp(44), dp(12)));
-
-        storageButton = actionButton(false);
-        content.addView(storageButton, matchFixed(dp(54), dp(12)));
-
-        TextView eyebrow = text("PHONE-ONLY INSTALLER", 13, Color.rgb(255, 112, 28));
-        eyebrow.setGravity(Gravity.CENTER);
-        content.addView(eyebrow, matchWrap(dp(4)));
-
-        TextView title = text("SKATE 3", 30, Color.WHITE);
-        title.setGravity(Gravity.CENTER);
-        title.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-        content.addView(title, matchWrap(dp(8)));
-
-        TextView intro = text(
-            "No computer required. Select an Xbox 360 ISO that you dumped from your own Skate 3 copy. The game stays on this device.",
-            16, Color.rgb(205, 205, 210));
-        intro.setGravity(Gravity.CENTER);
-        intro.setLineSpacing(0, 1.12f);
-        content.addView(intro, matchWrap(dp(24)));
 
         statusText = text("Checking installation...", 20, Color.WHITE);
         statusText.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
@@ -197,18 +211,44 @@ public class LauncherActivity extends Activity {
         tertiaryButton = actionButton(false);
         updateButton = actionButton(false);
         reportButton = actionButton(false);
+        storageButton = actionButton(false);
+        languageButton = actionButton(false);
         content.addView(primaryButton, matchFixed(dp(58), dp(10)));
+        content.addView(secondaryButton, matchFixed(dp(52), dp(8)));
+
+        addSectionTitle(content, "CHARACTERS & MODS");
         content.addView(characterButton, matchFixed(dp(54), dp(10)));
         content.addView(submitModButton, matchFixed(dp(54), dp(10)));
         setButton(submitModButton, "SUBMIT A MOD", view -> openModSubmission(), false);
-        content.addView(secondaryButton, matchFixed(dp(54), dp(10)));
-        content.addView(tertiaryButton, matchFixed(dp(54), dp(10)));
-        content.addView(updateButton, matchFixed(dp(50), dp(18)));
+
+        settingsPanel = new ScrollView(this);
+        LinearLayout settings = new LinearLayout(this);
+        settings.setOrientation(LinearLayout.VERTICAL);
+        settings.setPadding(padding, dp(8), padding, 0);
+        settingsPanel.addView(settings);
+        autoLaunchSwitch = new Switch(this);
+        autoLaunchSwitch.setText(localize("Launch game when the app opens"));
+        autoLaunchSwitch.setTextColor(Color.WHITE);
+        autoLaunchSwitch.setPadding(dp(8), 0, dp(8), 0);
+        autoLaunchSwitch.setChecked(getSharedPreferences(LAUNCHER_PREFERENCES, MODE_PRIVATE)
+            .getBoolean(AUTO_LAUNCH, false));
+        autoLaunchSwitch.setOnCheckedChangeListener((button, enabled) ->
+            getSharedPreferences(LAUNCHER_PREFERENCES, MODE_PRIVATE)
+                .edit().putBoolean(AUTO_LAUNCH, enabled).apply());
+        settings.addView(autoLaunchSwitch, matchFixed(dp(52), dp(6)));
+        settings.addView(storageButton, matchFixed(dp(50), dp(8)));
+        setButton(languageButton, LauncherStrings.languageButton(this),
+                  view -> showLanguagePicker(), false);
+        settings.addView(languageButton, matchFixed(dp(50), dp(8)));
+        settings.addView(gpuDriverButton, matchFixed(dp(50), dp(8)));
+
+        addSectionTitle(content, "UPDATES & SUPPORT");
+        content.addView(updateButton, matchFixed(dp(50), dp(8)));
         setButton(updateButton, "CHECK FOR APP UPDATES", view -> checkForAppUpdate(true), false);
-        content.addView(reportButton, matchFixed(dp(50), dp(18)));
+        content.addView(tertiaryButton, matchFixed(dp(50), dp(8)));
+        content.addView(reportButton, matchFixed(dp(50), dp(8)));
         setButton(reportButton, "BUG REPORT / DEVICE DIAGNOSTICS",
                   view -> BugReporter.show(this), false);
-        content.addView(gpuDriverButton, matchFixed(dp(46), dp(18)));
 
         TextView requirements = text(
             "Requires Android 13+, ARM64, Vulkan, and about 8 GB free after the ISO is already on your device or USB drive. Touch controls are included.",
@@ -217,7 +257,25 @@ public class LauncherActivity extends Activity {
         requirements.setLineSpacing(0, 1.1f);
         content.addView(requirements, matchWrap(dp(18)));
 
-        setContentView(scroll);
+        setContentView(screen);
+    }
+
+    private void showSettings() {
+        if (busy) return;
+        if (settingsPanel.getParent() instanceof ViewGroup) {
+            ((ViewGroup) settingsPanel.getParent()).removeView(settingsPanel);
+        }
+        new AlertDialog.Builder(this)
+            .setTitle(localize("SETTINGS"))
+            .setView(settingsPanel)
+            .setPositiveButton(localize("CLOSE"), null)
+            .show();
+    }
+
+    private void addSectionTitle(LinearLayout content, String label) {
+        TextView heading = text(label, 12, Color.rgb(255, 147, 83));
+        heading.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        content.addView(heading, matchWrap(dp(20)));
     }
 
     private void showLanguagePicker() {
@@ -279,6 +337,7 @@ public class LauncherActivity extends Activity {
         boolean storageAvailable = resolveStorage();
         setButton(storageButton, "GAME DATA STORAGE", view -> showStoragePicker(), false);
         if (!storageAvailable) {
+            autoLaunchPending = false;
             setLocalizedText(statusText, "STORAGE UNAVAILABLE");
             setLocalizedText(detailText,
                 "Reconnect the selected card or choose another game data storage location.");
@@ -291,6 +350,7 @@ public class LauncherActivity extends Activity {
         }
         String unsupported = compatibilityProblem();
         if (unsupported != null) {
+            autoLaunchPending = false;
             setLocalizedText(statusText, "DEVICE NOT SUPPORTED");
             setLocalizedText(detailText, unsupported);
             setButton(primaryButton, "CLOSE", view -> finish(), true);
@@ -317,9 +377,14 @@ public class LauncherActivity extends Activity {
                 hide(secondaryButton);
             }
             setButton(tertiaryButton, "VIEW SETUP LOG", view -> showLog(), false);
+            if (autoLaunchPending) {
+                autoLaunchPending = false;
+                launchGame();
+            }
             return;
         }
 
+        autoLaunchPending = false;
         if (isExtractionComplete()) {
             setLocalizedText(statusText, "GAME EXTRACTED");
             setLocalizedText(detailText, "Finish by downloading the verified 1.7 MB Title Update 3, or select the package yourself.");
@@ -574,7 +639,6 @@ public class LauncherActivity extends Activity {
             return;
         }
         startActivity(new Intent(this, Skate3Activity.class));
-        finish();
     }
 
     private void checkForAppUpdate(boolean manual) {
@@ -1468,7 +1532,9 @@ public class LauncherActivity extends Activity {
     }
 
     private void setButtonsEnabled(boolean enabled) {
+        settingsButton.setEnabled(enabled);
         languageButton.setEnabled(enabled);
+        autoLaunchSwitch.setEnabled(enabled);
         storageButton.setEnabled(enabled);
         primaryButton.setEnabled(enabled);
         characterButton.setEnabled(enabled);

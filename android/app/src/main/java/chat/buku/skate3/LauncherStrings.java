@@ -16,6 +16,13 @@ final class LauncherStrings {
     private static final Map<String, String> PT = new HashMap<>();
 
     static {
+        put("CHARACTERS & MODS", "PERSONAGENS E MODS");
+        put("SETTINGS", "CONFIGURAÇÕES");
+        put("UPDATES & SUPPORT", "ATUALIZAÇÕES E SUPORTE");
+        put("Launch game when the app opens", "Iniciar o jogo ao abrir o aplicativo");
+        put("Save any progress you want to keep before leaving.", "Salve seu progresso antes de sair.");
+        put("Quit app", "Fechar o aplicativo");
+        put("Keep playing", "Continuar jogando");
         put("Touch controls hidden. Tap the top center to restore them.",
             "Controles de toque ocultos. Toque no centro superior para restaurá-los.");
         put("GAME DATA STORAGE", "ARMAZENAMENTO DO JOGO");

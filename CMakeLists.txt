@@ -264,6 +264,7 @@ include(cmake/RexGlue.cmake)
 if(ANDROID)
     target_link_libraries(rexui PUBLIC adrenotools)
     target_compile_definitions(rexui PRIVATE REX_HAS_ADRENOTOOLS=1)
+    include(cmake/AndroidSettingsMenu.cmake)
 endif()
 include(cmake/CodegenTargets.cmake)
 

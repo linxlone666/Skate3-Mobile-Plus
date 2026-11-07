@@ -3,6 +3,7 @@
     <style name="AppTheme" parent="android:Theme.Material.NoActionBar.Fullscreen">
         <item name="android:fontFamily">sans</item>
         <item name="android:windowBackground">#080C0F</item>
+        <item name="android:windowLayoutInDisplayCutoutMode">always</item>
         <item name="android:colorAccent">#FF6B16</item>
         <item name="android:alertDialogTheme">@style/AppAlertDialogTheme</item>
     </style>

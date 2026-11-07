@@ -35,6 +35,7 @@ public final class TouchControllerView extends View {
     private static final int Y = 0x8000;
     private static final String PREFS = "skate3_touch_controller";
     private static final String PREF_VISIBLE = "visible";
+    private static final String PREF_SHOW_HIDDEN_TOGGLE = "show-hidden-toggle";
 
     private final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint stroke = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -42,8 +43,11 @@ public final class TouchControllerView extends View {
     private final List<Control> controls = new ArrayList<>();
     private final SparseArray<Control> pointers = new SparseArray<>();
     private final SharedPreferences preferences;
+    private final Runnable onBack;
     private boolean controlsVisible;
-    private RectF toggle = new RectF();
+    private volatile boolean showHiddenToggle;
+    private final RectF toggle = new RectF();
+    private final RectF menuBack = new RectF();
     private float lastWidth;
     private float lastHeight;
 
@@ -52,8 +56,9 @@ public final class TouchControllerView extends View {
     private Trigger leftTrigger;
     private Trigger rightTrigger;
 
-    public TouchControllerView(Context context) {
+    public TouchControllerView(Context context, Runnable onBack) {
         super(context);
+        this.onBack = onBack;
         setWillNotDraw(false);
         setFocusable(false);
         fill.setStyle(Paint.Style.FILL);
@@ -66,6 +71,17 @@ public final class TouchControllerView extends View {
         controlsVisible = preferences.contains(PREF_VISIBLE)
             ? preferences.getBoolean(PREF_VISIBLE, true)
             : !hasPhysicalController();
+        showHiddenToggle = preferences.getBoolean(PREF_SHOW_HIDDEN_TOGGLE, false);
+    }
+
+    boolean showsHiddenToggle() {
+        return showHiddenToggle;
+    }
+
+    void setShowHiddenToggle(boolean show) {
+        showHiddenToggle = show;
+        preferences.edit().putBoolean(PREF_SHOW_HIDDEN_TOGGLE, show).apply();
+        invalidate();
     }
 
     public void clearInput() {
@@ -145,6 +161,8 @@ public final class TouchControllerView extends View {
         float toggleTop = Math.max(dp(18), height * .035f);
         toggle.set(width * .5f - toggleWidth * .5f, toggleTop,
                    width * .5f + toggleWidth * .5f, toggleTop + unit * .46f);
+        float backLeft = toggle.right + dp(8);
+        menuBack.set(backLeft, toggle.top, backLeft + unit * 1.05f, toggle.bottom);
         sendState();
         invalidate();
     }
@@ -152,18 +170,20 @@ public final class TouchControllerView extends View {
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
+        if (controlsVisible || showHiddenToggle) {
+            drawOverlayButton(canvas, toggle, controlsVisible ? "HIDE" : "TOUCH");
+        }
         if (!controlsVisible) return;
-        drawToggle(canvas);
+        drawOverlayButton(canvas, menuBack, "BACK");
         for (Control control : controls) control.draw(canvas);
     }
 
-    private void drawToggle(Canvas canvas) {
+    private void drawOverlayButton(Canvas canvas, RectF bounds, String name) {
         fill.setColor(Color.argb(175, 15, 15, 18));
         stroke.setColor(Color.argb(220, 255, 112, 28));
-        canvas.drawRoundRect(toggle, dp(9), dp(9), fill);
-        canvas.drawRoundRect(toggle, dp(9), dp(9), stroke);
-        drawLabel(canvas, "HIDE", toggle.centerX(),
-                  toggle.centerY(), dp(11));
+        canvas.drawRoundRect(bounds, dp(9), dp(9), fill);
+        canvas.drawRoundRect(bounds, dp(9), dp(9), stroke);
+        drawLabel(canvas, name, bounds.centerX(), bounds.centerY(), dp(11));
     }
 
     @Override
@@ -186,6 +206,10 @@ public final class TouchControllerView extends View {
                 return true;
             }
             if (!controlsVisible) return false;
+            if (menuBack.contains(x, y)) {
+                onBack.run();
+                return true;
+            }
             for (int i = controls.size() - 1; i >= 0; --i) {
                 Control control = controls.get(i);
                 if (!control.inUse && control.contains(x, y)) {
