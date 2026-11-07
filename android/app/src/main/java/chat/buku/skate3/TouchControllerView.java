@@ -10,6 +10,7 @@ import android.util.SparseArray;
 import android.view.InputDevice;
 import android.view.MotionEvent;
 import android.view.View;
+import android.widget.Toast;
 
 import org.libsdl.app.SDLControllerManager;
 
@@ -151,8 +152,8 @@ public final class TouchControllerView extends View {
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
-        drawToggle(canvas);
         if (!controlsVisible) return;
+        drawToggle(canvas);
         for (Control control : controls) control.draw(canvas);
     }
 
@@ -161,7 +162,7 @@ public final class TouchControllerView extends View {
         stroke.setColor(Color.argb(220, 255, 112, 28));
         canvas.drawRoundRect(toggle, dp(9), dp(9), fill);
         canvas.drawRoundRect(toggle, dp(9), dp(9), stroke);
-        drawLabel(canvas, controlsVisible ? "HIDE" : "TOUCH", toggle.centerX(),
+        drawLabel(canvas, "HIDE", toggle.centerX(),
                   toggle.centerY(), dp(11));
     }
 
@@ -174,8 +175,14 @@ public final class TouchControllerView extends View {
         float y = event.getY(index);
 
         if (action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_POINTER_DOWN) {
+            // The top-center target remains usable while the overlay is hidden.
             if (toggle.contains(x, y)) {
                 setControlsVisible(!controlsVisible);
+                if (!controlsVisible) {
+                    Toast.makeText(getContext(), LauncherStrings.text(getContext(),
+                        "Touch controls hidden. Tap the top center to restore them."),
+                        Toast.LENGTH_SHORT).show();
+                }
                 return true;
             }
             if (!controlsVisible) return false;

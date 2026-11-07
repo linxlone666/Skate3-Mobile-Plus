@@ -16,6 +16,8 @@ final class LauncherStrings {
     private static final Map<String, String> PT = new HashMap<>();
 
     static {
+        put("Touch controls hidden. Tap the top center to restore them.",
+            "Controles de toque ocultos. Toque no centro superior para restaurá-los.");
         put("GAME DATA STORAGE", "ARMAZENAMENTO DO JOGO");
         put("Game data storage", "Armazenamento do jogo");
         put("Device storage", "Armazenamento do dispositivo");
