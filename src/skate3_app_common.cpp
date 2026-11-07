@@ -569,12 +569,13 @@ Skate3BaseApp::~Skate3BaseApp() = default;
 
 void Skate3BaseApp::OnConfigurePaths(rex::PathConfig& paths) {
 #if defined(__ANDROID__)
-  // Existing development installs used /sdcard/skate3 and may already have
-  // All Files Access. Preserve those installs when readable. New phone-only
-  // installs use Android's app-specific external directory, selected by the
-  // Java setup activity without requesting broad storage access.
+  // The launcher resolves the selected device or removable storage volume.
+  // Preserve the old lookup for Android entry points without a launcher path.
   const std::filesystem::path legacy_root = "/storage/emulated/0/skate3";
-  if (skate3::IsGameInstalled(legacy_root) &&
+  if (const char* selected_root = std::getenv("SKATE3_GAME_DATA_DIR");
+      selected_root != nullptr && *selected_root != '\0') {
+    paths.game_data_root = selected_root;
+  } else if (skate3::IsGameInstalled(legacy_root) &&
       skate3::IsTitleUpdateInstalled(legacy_root)) {
     paths.game_data_root = legacy_root;
   } else if (const char* external_root = SDL_GetAndroidExternalStoragePath();

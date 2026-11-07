@@ -16,6 +16,16 @@ final class LauncherStrings {
     private static final Map<String, String> PT = new HashMap<>();
 
     static {
+        put("GAME DATA STORAGE", "ARMAZENAMENTO DO JOGO");
+        put("Game data storage", "Armazenamento do jogo");
+        put("Device storage", "Armazenamento do dispositivo");
+        put("free", "livres");
+        put("Install folder", "Pasta de instalação");
+        put("STORAGE UNAVAILABLE", "ARMAZENAMENTO INDISPONÍVEL");
+        put("Reconnect the selected card or choose another game data storage location.",
+            "Reconecte o cartão selecionado ou escolha outro local para os dados do jogo.");
+        put("Choose a storage location, then select your ISO to install there.",
+            "Escolha um local de armazenamento e selecione sua ISO para instalar nele.");
         put("COMMUNITY MODS", "MODS DA COMUNIDADE");
         put("SUBMIT A MOD", "ENVIAR UM MOD");
         put("Made a character? Send it in for the Mod Store. Character mods are currently supported; every submission is reviewed before publication.",

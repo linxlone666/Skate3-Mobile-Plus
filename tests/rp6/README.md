@@ -30,6 +30,14 @@ FFmpeg, and an attached device are not required for these host checks.
 
 ## Coverage and limits
 
+The removable-storage resolver has an independent host check requiring Node.js
+and JDK 17. Set `JAVA_HOME` to your JDK if Java is outside `PATH`, then run
+`node tests/rp6/check-game-storage.mjs` from the repository root. It covers saved
+volume selection, install readiness, card removal and reconnection, read-only
+cards, volume ordering, and the Java/native path handoff. Android storage APIs
+and Title Update verification are stubbed for this check. On-device installation
+and gameplay still require testing.
+
 | Check | Coverage | Deliberately mocked or untested |
 | --- | --- | --- |
 | startup | Reproduces the lost first Resume; exercises six suspension/count scenarios and thread-exit notification | Synchronization adapters force scheduling boundaries; real POSIX signal delivery is stubbed |

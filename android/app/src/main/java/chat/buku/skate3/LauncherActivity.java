@@ -70,6 +70,7 @@ public class LauncherActivity extends Activity {
     private TextView detailText;
     private ProgressBar progressBar;
     private Button languageButton;
+    private Button storageButton;
     private Button primaryButton;
     private Button characterButton;
     private Button submitModButton;
@@ -98,10 +99,7 @@ public class LauncherActivity extends Activity {
             finish();
             return;
         }
-        File external = getExternalFilesDir(null);
-        storageRoot = external != null ? external : getFilesDir();
-        gameDirectory = new File(storageRoot, "game");
-        partialDirectory = new File(storageRoot, "game-installing");
+        resolveStorage();
         setupLog = new File(getFilesDir(), "phone-setup.log");
         buildInterface();
         refreshInterface();
@@ -111,6 +109,7 @@ public class LauncherActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        if (storageButton != null && !busy) refreshInterface();
         if (awaitingInstallPermission && pendingUpdateApk != null &&
             getPackageManager().canRequestPackageInstalls()) {
             awaitingInstallPermission = false;
@@ -154,6 +153,9 @@ public class LauncherActivity extends Activity {
         setButton(languageButton, LauncherStrings.languageButton(this),
                   view -> showLanguagePicker(), false);
         content.addView(languageButton, matchFixed(dp(44), dp(12)));
+
+        storageButton = actionButton(false);
+        content.addView(storageButton, matchFixed(dp(54), dp(12)));
 
         TextView eyebrow = text("PHONE-ONLY INSTALLER", 13, Color.rgb(255, 112, 28));
         eyebrow.setGravity(Gravity.CENTER);
@@ -237,12 +239,56 @@ public class LauncherActivity extends Activity {
         dialog.show();
     }
 
+    private boolean resolveStorage() {
+        GameStorage selected = GameStorage.selected(this);
+        storageRoot = selected == null ? null : selected.directory;
+        gameDirectory = storageRoot == null ? null : new File(storageRoot, "game");
+        partialDirectory = storageRoot == null ? null : new File(storageRoot, "game-installing");
+        return selected != null;
+    }
+
+    private void showStoragePicker() {
+        if (busy) return;
+        List<GameStorage> locations = GameStorage.available(this);
+        String[] labels = new String[locations.size()];
+        int selectedIndex = -1;
+        for (int index = 0; index < locations.size(); index++) {
+            GameStorage location = locations.get(index);
+            labels[index] = location.label + "\n" +
+                humanBytes(location.directory.getUsableSpace()) + " " + localize("free");
+            if (location.directory.equals(storageRoot)) selectedIndex = index;
+        }
+        new AlertDialog.Builder(this)
+            .setTitle(localize("Game data storage"))
+            .setSingleChoiceItems(labels, selectedIndex, (dialog, index) -> {
+                locations.get(index).select(this);
+                bundledSeiyuAttempted = false;
+                dialog.dismiss();
+                refreshInterface();
+            })
+            .setPositiveButton(localize("Cancel"), null)
+            .show();
+    }
+
     private void refreshInterface() {
         if (busy) {
             return;
         }
         setButtonsEnabled(true);
         progressBar.setVisibility(View.GONE);
+        boolean storageAvailable = resolveStorage();
+        setButton(storageButton, "GAME DATA STORAGE", view -> showStoragePicker(), false);
+        if (!storageAvailable) {
+            setLocalizedText(statusText, "STORAGE UNAVAILABLE");
+            setLocalizedText(detailText,
+                "Reconnect the selected card or choose another game data storage location.");
+            setButton(primaryButton, "GAME DATA STORAGE", view -> showStoragePicker(), true);
+            hide(characterButton);
+            hide(gpuDriverButton);
+            hide(secondaryButton);
+            hide(tertiaryButton);
+            return;
+        }
         String unsupported = compatibilityProblem();
         if (unsupported != null) {
             setLocalizedText(statusText, "DEVICE NOT SUPPORTED");
@@ -288,7 +334,9 @@ public class LauncherActivity extends Activity {
         setLocalizedText(statusText, "ONE FILE NEEDED");
         setLocalizedText(detailText,
             "Select your Skate 3 Xbox 360 ISO. It can be in Downloads, on an SD card, or on a connected USB drive.\n\nFree space: " +
-            humanBytes(new StatFs(storageRoot.getAbsolutePath()).getAvailableBytes()));
+            humanBytes(storageRoot.getUsableSpace()) + "\n" +
+            localize("Install folder") + "\n" + gameDirectory.getAbsolutePath() + "\n\n" +
+            localize("Choose a storage location, then select your ISO to install there."));
         setButton(primaryButton, "SELECT MY SKATE 3 ISO", view -> pickIso(), true);
         hide(characterButton);
         hide(gpuDriverButton);
@@ -356,6 +404,10 @@ public class LauncherActivity extends Activity {
     }
 
     private void beginIsoInstallation(Uri uri) {
+        if (!resolveStorage()) {
+            refreshInterface();
+            return;
+        }
         setBusy("INSPECTING ISO", "Checking " + displayName(uri), false);
         worker.execute(() -> {
             boolean extractionComplete = false;
@@ -404,6 +456,10 @@ public class LauncherActivity extends Activity {
     }
 
     private void finishSetupOnline() {
+        if (!resolveStorage()) {
+            refreshInterface();
+            return;
+        }
         setBusy("INSTALLING TITLE UPDATE 3", "Downloading and verifying 1.7 MB...", true);
         worker.execute(() -> {
             try {
@@ -428,6 +484,10 @@ public class LauncherActivity extends Activity {
     }
 
     private void installSelectedTitleUpdate(Uri uri) {
+        if (!resolveStorage()) {
+            refreshInterface();
+            return;
+        }
         setBusy("VERIFYING TITLE UPDATE 3", "Reading " + displayName(uri), true);
         worker.execute(() -> {
             try (InputStream input = getContentResolver().openInputStream(uri)) {
@@ -468,6 +528,7 @@ public class LauncherActivity extends Activity {
         runOnUiThread(() -> {
             busy = false;
             getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            setButtonsEnabled(true);
             progressBar.setProgress(1000);
             setLocalizedText(statusText, "INSTALLATION COMPLETE");
             setLocalizedText(detailText, "Your files were verified and stayed on this device.");
@@ -503,6 +564,10 @@ public class LauncherActivity extends Activity {
     }
 
     private void launchGame() {
+        if (!resolveStorage()) {
+            refreshInterface();
+            return;
+        }
         if (!isGameReady(gameDirectory.toPath()) && !legacyGameReady()) {
             Toast.makeText(this, localize("Game installation needs repair."), Toast.LENGTH_LONG).show();
             refreshInterface();
@@ -1235,14 +1300,13 @@ public class LauncherActivity extends Activity {
     }
 
     private boolean legacyGameReady() {
+        if (!GameStorage.usesDeviceStorage(this)) return false;
         File legacy = new File("/storage/emulated/0/skate3");
         return isGameReady(legacy.toPath());
     }
 
     private boolean isGameReady(Path root) {
-        return Files.isRegularFile(root.resolve("default.xex")) &&
-               Files.isRegularFile(root.resolve("data/webkit/EAWebkit.xex")) &&
-               TitleUpdateInstaller.isInstalled(root);
+        return GameStorage.isGameReady(root);
     }
 
     private boolean isExtractionComplete() {
@@ -1311,6 +1375,10 @@ public class LauncherActivity extends Activity {
     }
 
     private void startOver() {
+        if (!resolveStorage()) {
+            refreshInterface();
+            return;
+        }
         setBusy("CLEANING UP", "Removing this app's installed copy...", false);
         worker.execute(() -> {
             try {
@@ -1401,6 +1469,7 @@ public class LauncherActivity extends Activity {
 
     private void setButtonsEnabled(boolean enabled) {
         languageButton.setEnabled(enabled);
+        storageButton.setEnabled(enabled);
         primaryButton.setEnabled(enabled);
         characterButton.setEnabled(enabled);
         submitModButton.setEnabled(enabled);

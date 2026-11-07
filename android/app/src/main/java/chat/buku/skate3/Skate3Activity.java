@@ -1,6 +1,7 @@
 package chat.buku.skate3;
 
 import android.os.Bundle;
+import android.content.Intent;
 import android.util.Log;
 import android.view.InputDevice;
 import android.view.KeyEvent;
@@ -28,7 +29,14 @@ public class Skate3Activity extends SDLActivity {
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
+        File gameDirectory = GameStorage.launchDirectory(this);
+        if (gameDirectory == null) {
+            startActivity(new Intent(this, LauncherActivity.class));
+            finish();
+            return;
+        }
         sessionActive = true;
+        nativeSetenv("SKATE3_GAME_DATA_DIR", gameDirectory.getAbsolutePath());
         String files = getFilesDir().getAbsolutePath();
         nativeSetenv("XDG_DATA_HOME", files);
         nativeSetenv("HOME", files);

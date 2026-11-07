@@ -441,9 +441,10 @@ final class BugReporter {
 
     private static String sanitizePath(Context context, String value) {
         String safe = value.replace(context.getFilesDir().getAbsolutePath(), "<app-files>");
-        File external = context.getExternalFilesDir(null);
-        if (external != null) {
-            safe = safe.replace(external.getAbsolutePath(), "<app-external-files>");
+        for (File external : context.getExternalFilesDirs(null)) {
+            if (external != null) {
+                safe = safe.replace(external.getAbsolutePath(), "<app-external-files>");
+            }
         }
         return clean(safe);
     }

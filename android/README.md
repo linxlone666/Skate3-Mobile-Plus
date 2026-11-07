@@ -49,6 +49,26 @@ The extracted game uses app-specific external storage. Its usual location is:
 /storage/emulated/0/Android/data/chat.buku.skate3/files/game/
 ```
 
+### Removable microSD storage in this custom build
+
+Tap **GAME DATA STORAGE** in the launcher to select device storage or a mounted,
+writable removable volume exposed by Android. Select your ISO after choosing the
+destination. Extraction, Title Update installation, mods, and native game loading
+use that destination. A card's app-owned folder typically has a path such as
+`/storage/<volume-id>/Android/data/<application-id>/files/game/`.
+
+The launcher remembers the selected volume across restarts. Reconnect a missing
+card or select another location to continue. Switching locations allows you to
+use an existing installation on that volume or install from your ISO there.
+An existing installation stays in its original location until you select that
+location and use **REPAIR OR REINSTALL** to remove its extracted files. Install
+and verify gameplay on the card before removing the original copy.
+
+Save files and settings continue to use the existing app-internal location.
+Android removes app-specific game folders when the app is uninstalled.
+
+### Storage access
+
 Android protects this folder from ordinary file-manager access. That is normal.
 The installer and game can use it without All files access. Uninstalling the app
 removes this folder, so keep the original ISO somewhere safe.
